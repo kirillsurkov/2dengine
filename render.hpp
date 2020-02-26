@@ -7,9 +7,10 @@
 
 class render_t {
 public:
+	virtual void init() {}
 	virtual window_ptr create_window(const std::string& title) = 0;
 	virtual image_ptr load_image(const std::string& filename) = 0;
-	virtual void draw_image(image_ptr image, const glm::mat4& mvp) = 0;
+	virtual void draw_image(image_ptr image, const glm::vec4& color, const glm::mat4& mvp) = 0;
 	virtual void clear() = 0;
 };
 

@@ -1,56 +1,35 @@
-#include <chrono>
 #include <iostream>
 
-#include <glm/gtc/matrix_transform.hpp>
-
-#include "context.hpp"
-#include "glfw_window.hpp"
-#include "opengl_render.hpp"
-#include "sprite.hpp"
-#include "animated_sprite.hpp"
+#include "engine.hpp"
+#include "object_snake.hpp"
+#include "object_food.hpp"
 
 int main() {
 	try {
-		auto context = std::make_shared<context_t>();
-		context->set_window_size(800, 600);
+		auto engine = std::make_shared<engine_t>(800, 600, "Game");
 
-		opengl_render_t render(context);
+		auto scene = engine->get_scene();
+		scene->set_scale(32);
 
-		auto window = render.create_window("Game");
-		window->set_current();
-
-		render.init();
-
-		sprite_t sprite1(render.load_image("food_1.png"));
-
-		animated_sprite_t sprite2;
-		sprite2.set_animation_speed(0.08f);
-		sprite2.add_image(render.load_image("food_1.png"));
-		sprite2.add_image(render.load_image("food_2.png"));
-		sprite2.add_image(render.load_image("food_3.png"));
+		auto snake = scene->add_object(std::make_shared<object_snake_t>(engine, 0.5f, 0, -1));
+		auto food = scene->add_object(std::make_shared<object_food_t>(engine, 0, 0));
 
 		try {
-			auto last_time = std::chrono::system_clock::now();
-			while (window->is_alive()) {
-				auto current_time = std::chrono::system_clock::now();
-				float delta = std::chrono::duration_cast<std::chrono::milliseconds>(current_time - last_time).count() / 1000.0f;
-				last_time = current_time;
-
-				sprite1.update(delta);
-				sprite2.update(delta);
-
-				int width;
-				int height;
-				context->get_window_size(width, height);
-				glm::mat4 ortho(glm::ortho(-0.5f * width, 0.5f * width, -0.5f * height, 0.5f * height));
-
-				render.clear();
-				render.draw_image(sprite1.get_image(), ortho * sprite1.get_transform());
-				render.draw_image(sprite2.get_image(), glm::translate(ortho * sprite2.get_transform(), glm::vec3(32.0f, 0.0f, 0.0f)));
-
-				window->swap_buffers();
-				window->poll_events();
-			}
+			engine->main_loop([&snake, &food, &scene, &engine](float delta) {
+				for (const auto& input : engine->get_inputs()) {
+					if (input == window_t::key::esc) {
+						return false;
+					}
+				}
+				const auto& snake_coords = snake->get_head_coords();
+				const auto& food_coords = food->get_coords();
+				if (snake_coords.x == food_coords.x && snake_coords.y == food_coords.y) {
+					scene->remove_object(food);
+					snake->grow();
+					food = scene->add_object(std::make_shared<object_food_t>(engine, std::rand() % 10 - 5, std::rand() % 10 - 5));
+				}
+				return true;
+			});
 		} catch (const std::exception& e) {
 			std::cout << "Exception in loop: " << e.what() << std::endl;
 		}

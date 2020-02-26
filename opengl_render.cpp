@@ -6,8 +6,9 @@
 
 #include "opengl_render.hpp"
 
-opengl_render_t::opengl_render_t(context_ptr context) :
-	m_context(context)
+opengl_render_t::opengl_render_t(int width, int height) :
+	m_width(width),
+	m_height(height)
 {
 	if (!glfwInit()) {
 		throw std::runtime_error("glfwInit failed");
@@ -26,10 +27,7 @@ void opengl_render_t::init() {
 		throw std::runtime_error("glewInit failed");
 	}
 
-	int width;
-	int height;
-	m_context->get_window_size(width, height);
-	glViewport(0, 0, width, height);
+	glViewport(0, 0, m_width, m_height);
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 	glEnable(GL_BLEND);
@@ -55,10 +53,11 @@ void opengl_render_t::init() {
 		"#version 130\n\
 		precision highp float;\n\
 		uniform sampler2D u_texture;\n\
+		uniform vec4 u_color;\n\
 		in vec2 v_uv;\n\
 		out vec4 outColor;\n\
 		void main() {\n\
-			outColor = texture2D(u_texture, v_uv);\n\
+			outColor = u_color * texture2D(u_texture, v_uv);\n\
 		}";
 
 	char buf[512];
@@ -85,34 +84,33 @@ void opengl_render_t::init() {
 
 	m_shader_loc_mvp = glGetUniformLocation(m_shader_program, "u_mvp");
 	m_shader_loc_texture = glGetUniformLocation(m_shader_program, "u_texture");
+	m_shader_loc_color = glGetUniformLocation(m_shader_program, "u_color");
 }
 
 window_ptr opengl_render_t::create_window(const std::string& title) {
-	return std::make_shared<glfw_window_t>(m_context, title);
+	return std::make_shared<glfw_window_t>(m_width, m_height, title);
 }
 
 image_ptr opengl_render_t::load_image(const std::string& filename) {
-	if (m_images_cache.find(filename) == m_images_cache.end()) {
-		auto image = std::make_shared<image_t>("res/" + filename);
-		std::vector<char> pixels(image->get_pixels());
-		GLuint id;
-		glGenTextures(1, &id);
-		glBindTexture(GL_TEXTURE_2D, id);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image->get_width(), image->get_height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		m_images_cache[filename] = image;
-		m_images[image] = id;
-	}
-	return m_images_cache[filename];
+	auto image = std::make_shared<image_t>("res/" + filename);
+	std::vector<char> pixels(image->get_pixels());
+	GLuint id;
+	glGenTextures(1, &id);
+	glBindTexture(GL_TEXTURE_2D, id);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image->get_width(), image->get_height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	m_images[image] = id;
+	return image;
 }
 
-void opengl_render_t::draw_image(image_ptr image, const glm::mat4& mvp) {
+void opengl_render_t::draw_image(image_ptr image, const glm::vec4& color, const glm::mat4& mvp) {
 	glBindTexture(GL_TEXTURE_2D, m_images[image]);
 	glActiveTexture(GL_TEXTURE0);
 	glUniform1i(m_shader_loc_texture, 0);
+	glUniform4fv(m_shader_loc_color, 1, &color[0]);
 	glUniformMatrix4fv(m_shader_loc_mvp, 1, GL_FALSE, &glm::scale(mvp, glm::vec3(0.5f * image->get_width(), 0.5f * image->get_height(), 1.0f))[0][0]);
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 }

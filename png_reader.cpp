@@ -77,7 +77,8 @@ png_reader_t::png_reader_t(const std::string& filename) :
 	}
 
 	png_read_image(m_libpng.png_ptr, row_pointers.data());
-	for (png_byte* row : row_pointers) {
+	for (auto it = row_pointers.rbegin(); it != row_pointers.rend(); it++) {
+		auto row = *it;
 		for (int x = 0; x < m_width; x++) {
 			float alpha = row[x * m_channels + 3] / 255.0f;
 			row[x * m_channels + 0] *= alpha;
